@@ -1,0 +1,52 @@
+# ==============================================================================
+# FVM2D Solver Configuration
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Input Settings
+# ------------------------------------------------------------------------------
+input:
+  mesh_dir: "mesh"  # Directory containing partition_X.mesh files
+
+# ------------------------------------------------------------------------------
+# Simulation Settings
+# ------------------------------------------------------------------------------
+simulation:
+  t_end: 0.25               # Final simulation time
+  equation: euler           # Options: "euler", "shallow_water"
+  case: riemann             # Test case name
+
+# ------------------------------------------------------------------------------
+# Physics Model Parameters
+# ------------------------------------------------------------------------------
+physics:
+  euler:
+    gamma: 1.4              # Ratio of specific heats
+  shallow_water:
+    g: 9.806                # Acceleration due to gravity
+
+# ------------------------------------------------------------------------------
+# Solver Options
+# ------------------------------------------------------------------------------
+solver:
+  # Time Integration Settings
+  time_integration:
+    method: "rk2"           # Options: "euler", "rk2"
+    cfl: 0.5                # CFL number for stability
+    use_adaptive_dt: true   # Use adaptive time stepping
+    dt_initial: 1.0e-4      # Initial time step
+
+  # Spatial Discretization
+  spatial:
+    flux_type: "hllc"              # Options: "roe", "hllc", "central_difference"
+    limiter_type: "minmod"         # Options: "minmod", "barth_jespersen", "superbee", "none"
+    gradient_over_relaxation: 1.0  # Over-relaxation for gradient computation
+
+# ------------------------------------------------------------------------------
+# Output Settings
+# ------------------------------------------------------------------------------
+output:
+  format: "vtk"                    # Options: "vtk", "tecplot"
+  interval: 50                     # Output every N steps
+  filename_prefix: "solution"      # Prefix for output files
+  output_dir: "results"            # Output directory
