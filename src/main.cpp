@@ -51,7 +51,8 @@ int main(int argc, char* argv[]) {
         }
 
         // Broadcast configuration to all ranks
-        fvm2d::broadcast_config(config, &MPI_COMM_WORLD);
+        MPI_Comm comm = MPI_COMM_WORLD;
+        fvm2d::broadcast_config(config, &comm);
 
         if (rank == 0) {
             std::cout << "Configuration loaded successfully.\n";

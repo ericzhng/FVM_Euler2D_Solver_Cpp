@@ -15,9 +15,37 @@ Scalar calculate_local_dt(
     Scalar cfl
 ) {
     const Index num_owned = mesh.num_owned_cells;
-    Scalar local_min_dt = std::numeric_limits<Scalar>::max();
+    Scalar global_min_dt = std::numeric_limits<Scalar>::max();
 
-    #pragma omp parallel for reduction(min:local_min_dt)
+#ifdef FVM2D_USE_OPENMP
+    #pragma omp parallel
+    {
+        Scalar local_min_dt = std::numeric_limits<Scalar>::max();
+
+        #pragma omp for nowait
+        for (Index i = 0; i < num_owned; ++i) {
+            // Get cell state
+            VectorXd U_i = U.row(i).transpose();
+
+            // Compute maximum eigenvalue (wave speed)
+            Scalar max_lambda = physics.max_eigenvalue(U_i);
+
+            // Characteristic length scale (sqrt of area for 2D)
+            Scalar h = std::sqrt(mesh.cell_volumes[i]);
+
+            // Local time step
+            if (max_lambda > EPSILON) {
+                Scalar local_dt = cfl * h / max_lambda;
+                local_min_dt = std::min(local_min_dt, local_dt);
+            }
+        }
+
+        #pragma omp critical
+        {
+            global_min_dt = std::min(global_min_dt, local_min_dt);
+        }
+    }
+#else
     for (Index i = 0; i < num_owned; ++i) {
         // Get cell state
         VectorXd U_i = U.row(i).transpose();
@@ -31,11 +59,12 @@ Scalar calculate_local_dt(
         // Local time step
         if (max_lambda > EPSILON) {
             Scalar local_dt = cfl * h / max_lambda;
-            local_min_dt = std::min(local_min_dt, local_dt);
+            global_min_dt = std::min(global_min_dt, local_dt);
         }
     }
+#endif
 
-    return local_min_dt;
+    return global_min_dt;
 }
 
 Scalar calculate_adaptive_dt(

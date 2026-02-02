@@ -2,9 +2,10 @@ cmake_minimum_required(VERSION 3.18)
 project(fvm2d VERSION 1.0.0 LANGUAGES CXX)
 
 # =============================================================================
-# CMake Module Path
+# CMake Module and Prefix Path
 # =============================================================================
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/extern")
 
 # =============================================================================
 # C++ Standard
@@ -46,7 +47,6 @@ endif()
 # =============================================================================
 option(FVM2D_USE_OPENMP "Enable OpenMP parallelization" ON)
 option(FVM2D_BUILD_TESTS "Build unit tests" OFF)
-option(FVM2D_USE_FVM_MESH "Use FVM_mesh library for mesh operations" ON)
 
 # =============================================================================
 # Dependencies
@@ -173,72 +173,24 @@ if(FVM2D_USE_OPENMP)
     endif()
 endif()
 
-# Eigen (header-only)
-find_package(Eigen3 3.4 CONFIG)
-if(NOT Eigen3_FOUND)
-    find_path(EIGEN3_INCLUDE_DIR Eigen/Dense
-        PATHS
-            /usr/include/eigen3
-            /usr/local/include/eigen3
-            $ENV{EIGEN3_ROOT}
-            ${CMAKE_SOURCE_DIR}/extern/eigen
+# Eigen (header-only) - Use extern version directly
+message(STATUS "Using Eigen3 from 'extern/eigen-3.4.1'")
+add_subdirectory(extern/eigen-3.4.1 EXCLUDE_FROM_ALL)
+
+# Suppress warnings from Eigen headers only (target the actual 'eigen' target, not the alias)
+get_target_property(EIGEN_IID eigen INTERFACE_INCLUDE_DIRECTORIES)
+if(EIGEN_IID)
+    set_target_properties(eigen PROPERTIES
+        INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${EIGEN_IID}"
     )
-    if(EIGEN3_INCLUDE_DIR)
-        message(STATUS "Eigen3 found at: ${EIGEN3_INCLUDE_DIR}")
-        add_library(Eigen3::Eigen INTERFACE IMPORTED)
-        set_target_properties(Eigen3::Eigen PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${EIGEN3_INCLUDE_DIR}"
-        )
-    else()
-        message(FATAL_ERROR "Eigen3 not found. Please install Eigen3 or set EIGEN3_ROOT")
-    endif()
-else()
-    message(STATUS "Eigen3 found: ${EIGEN3_INCLUDE_DIR}")
 endif()
 
-# yaml-cpp
-find_package(yaml-cpp CONFIG)
-if(NOT yaml-cpp_FOUND)
-    find_library(YAML_CPP_LIB yaml-cpp)
-    find_path(YAML_CPP_INCLUDE yaml-cpp/yaml.h)
-    if(YAML_CPP_LIB AND YAML_CPP_INCLUDE)
-        message(STATUS "yaml-cpp found: ${YAML_CPP_LIB}")
-        add_library(yaml-cpp UNKNOWN IMPORTED)
-        set_target_properties(yaml-cpp PROPERTIES
-            IMPORTED_LOCATION "${YAML_CPP_LIB}"
-            INTERFACE_INCLUDE_DIRECTORIES "${YAML_CPP_INCLUDE}"
-        )
-    else()
-        message(FATAL_ERROR "yaml-cpp not found. Please install yaml-cpp")
-    endif()
-else()
-    message(STATUS "yaml-cpp found")
-endif()
-
-# =============================================================================
-# FVM_mesh Library (external mesh library)
-# =============================================================================
-if(FVM2D_USE_FVM_MESH)
-    # Set the path based on build type
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(FVM_MESH_DIR "${CMAKE_SOURCE_DIR}/extern/FVM_mesh/Debug")
-    else()
-        set(FVM_MESH_DIR "${CMAKE_SOURCE_DIR}/extern/FVM_mesh/Release")
-    endif()
-
-    # Add the FVM_mesh cmake directory to the module path
-    list(APPEND CMAKE_PREFIX_PATH "${FVM_MESH_DIR}/lib/cmake/FVM_mesh")
-    list(APPEND CMAKE_MODULE_PATH "${FVM_MESH_DIR}/lib/cmake/FVM_mesh/modules")
-
-    # Find FVM_mesh package
-    find_package(FVM_mesh CONFIG)
-    if(FVM_mesh_FOUND)
-        message(STATUS "FVM_mesh found: ${FVM_MESH_DIR}")
-    else()
-        message(WARNING "FVM_mesh not found at ${FVM_MESH_DIR}")
-        set(FVM2D_USE_FVM_MESH OFF)
-    endif()
-endif()
+# yaml-cpp - Use extern version directly
+message(STATUS "Using yaml-cpp from 'extern/yaml-cpp-0.8.0'")
+set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "" FORCE)
+add_subdirectory(extern/yaml-cpp-0.8.0 EXCLUDE_FROM_ALL)
 
 # =============================================================================
 # Source Files (Modular Structure)
@@ -269,15 +221,6 @@ target_link_libraries(fvm2d_lib
         yaml-cpp
 )
 
-# Link FVM_mesh if enabled and found
-if(FVM2D_USE_FVM_MESH AND FVM_mesh_FOUND)
-    target_link_libraries(fvm2d_lib PUBLIC FVM::polymesh)
-    target_include_directories(fvm2d_lib PUBLIC
-        $<BUILD_INTERFACE:${FVM_MESH_DIR}/include>
-    )
-    target_compile_definitions(fvm2d_lib PUBLIC FVM2D_HAS_FVM_MESH)
-endif()
-
 # OpenMP support
 if(FVM2D_USE_OPENMP AND OpenMP_FOUND)
     target_link_libraries(fvm2d_lib PUBLIC OpenMP::OpenMP_CXX)
@@ -291,37 +234,12 @@ add_executable(fvm2d_solver src/main.cpp)
 target_link_libraries(fvm2d_solver PRIVATE fvm2d_lib)
 
 # =============================================================================
-# Copy DLLs for Windows Runtime
-# =============================================================================
-if(WIN32 AND FVM2D_USE_FVM_MESH AND FVM_mesh_FOUND)
-    set(FVM_MESH_DLLS
-        "${FVM_MESH_DIR}/bin/polymesh.dll"
-        "${FVM_MESH_DIR}/bin/meshgen.dll"
-        "${FVM_MESH_DIR}/bin/gmsh-4.15.dll"
-        "${FVM_MESH_DIR}/bin/metis.dll"
-    )
-
-    foreach(DLL_FILE ${FVM_MESH_DLLS})
-        if(EXISTS "${DLL_FILE}")
-            add_custom_command(TARGET fvm2d_solver POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${DLL_FILE}"
-                    $<TARGET_FILE_DIR:fvm2d_solver>
-                COMMENT "Copying ${DLL_FILE}"
-            )
-        endif()
-    endforeach()
-endif()
-
-# =============================================================================
 # Installation
 # =============================================================================
 include(GNUInstallDirs)
 
-install(TARGETS fvm2d_lib fvm2d_solver
-    EXPORT fvm2dTargets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+# Install executable only (library depends on local extern targets that can't be exported)
+install(TARGETS fvm2d_solver
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
@@ -330,12 +248,6 @@ install(FILES src/fvm2d.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(DIRECTORY src/core src/mesh src/physics src/boundary src/gradient src/limiter src/solver src/time src/io
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.hpp"
-)
-
-install(EXPORT fvm2dTargets
-    FILE fvm2dTargets.cmake
-    NAMESPACE fvm2d::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fvm2d
 )
 
 # =============================================================================
@@ -377,7 +289,6 @@ message(STATUS "    MPI:       ${FVM2D_MPI_IMPL}")
 message(STATUS "    Eigen3:    Found")
 message(STATUS "    yaml-cpp:  Found")
 message(STATUS "    OpenMP:    ${FVM2D_USE_OPENMP}")
-message(STATUS "    FVM_mesh:  ${FVM2D_USE_FVM_MESH}")
 message(STATUS "")
 message(STATUS "  Options:")
 message(STATUS "    Build Tests: ${FVM2D_BUILD_TESTS}")
