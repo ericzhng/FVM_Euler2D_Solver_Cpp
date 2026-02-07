@@ -2,6 +2,7 @@
 
 #include "core/types.hpp"
 #include <string>
+#include <map>
 
 namespace fvm2d {
 
@@ -55,7 +56,8 @@ struct PhysicsConfig {
 
 struct SolverConfig {
     // Input
-    std::string mesh_dir = "mesh";  // Directory containing partition_X.mesh files
+    std::string mesh_dir = "mesh";  // Directory containing partition mesh files
+    std::string boundary_config_file;  // Path to boundary_config.yaml (optional)
 
     // Simulation
     Scalar t_end = 0.25;
@@ -91,5 +93,15 @@ SolverConfig parse_config(const std::string& filepath);
  * @param comm MPI communicator
  */
 void broadcast_config(SolverConfig& config, void* comm);
+
+// Forward declare BoundarySpec (defined in boundary/boundary_condition.hpp)
+struct BoundarySpec;
+
+/**
+ * @brief Parse boundary condition config from YAML file
+ * @param filepath Path to boundary_config.yaml
+ * @return Map from boundary name to BoundarySpec
+ */
+std::map<std::string, BoundarySpec> parse_boundary_config(const std::string& filepath);
 
 }  // namespace fvm2d

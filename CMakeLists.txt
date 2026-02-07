@@ -213,6 +213,9 @@ target_include_directories(fvm2d_lib
         $<INSTALL_INTERFACE:include>
 )
 
+# Define FVM_STATIC so embedded vtkio FVM_API resolves to nothing
+target_compile_definitions(fvm2d_lib PRIVATE FVM_STATIC)
+
 # Link dependencies
 target_link_libraries(fvm2d_lib
     PUBLIC

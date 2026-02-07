@@ -6,7 +6,8 @@
 # Input Settings
 # ------------------------------------------------------------------------------
 input:
-  mesh_dir: "mesh"  # Directory containing partition_X.mesh files
+  mesh_dir: "mesh"                         # Directory containing partition mesh files
+  boundary_config: "boundary_config.yaml"  # Boundary condition configuration (optional)
 
 # ------------------------------------------------------------------------------
 # Simulation Settings

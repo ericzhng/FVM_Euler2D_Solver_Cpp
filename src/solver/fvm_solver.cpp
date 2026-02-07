@@ -47,6 +47,17 @@ void FVMSolver::initialize() {
 }
 
 void FVMSolver::setup_case() {
+    // Load boundary conditions from config file if specified
+    if (!config_.boundary_config_file.empty()) {
+        if (rank_ == 0) {
+            std::cout << "Loading boundary config: " << config_.boundary_config_file << std::endl;
+        }
+        auto bc_specs = parse_boundary_config(config_.boundary_config_file);
+        for (const auto& [name, spec] : bc_specs) {
+            boundary_conditions_.add(name, spec);
+        }
+    }
+
     if (config_.case_name == "riemann") {
         if (config_.equation == EquationType::Euler) {
             setup_euler_riemann_case();
@@ -96,9 +107,11 @@ void FVMSolver::setup_euler_riemann_case() {
         U_.row(i) = euler->prim_to_cons(P).transpose();
     }
 
-    // All boundaries transmissive
-    for (const auto& [name, tag] : mesh_.boundary_patch_map) {
-        boundary_conditions_.add(name, BoundarySpec(BCType::Transmissive, VectorXd()));
+    // Default: all boundaries transmissive (only for patches not already configured)
+    if (config_.boundary_config_file.empty()) {
+        for (const auto& [name, tag] : mesh_.boundary_patch_map) {
+            boundary_conditions_.add(name, BoundarySpec(BCType::Transmissive, VectorXd()));
+        }
     }
 }
 
@@ -133,9 +146,11 @@ void FVMSolver::setup_shallow_water_riemann_case() {
         U_.row(i) = swe->prim_to_cons(P).transpose();
     }
 
-    // All boundaries transmissive
-    for (const auto& [name, tag] : mesh_.boundary_patch_map) {
-        boundary_conditions_.add(name, BoundarySpec(BCType::Transmissive, VectorXd()));
+    // Default: all boundaries transmissive (only for patches not already configured)
+    if (config_.boundary_config_file.empty()) {
+        for (const auto& [name, tag] : mesh_.boundary_patch_map) {
+            boundary_conditions_.add(name, BoundarySpec(BCType::Transmissive, VectorXd()));
+        }
     }
 }
 

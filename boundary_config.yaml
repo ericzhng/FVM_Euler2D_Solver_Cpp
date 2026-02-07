@@ -1,0 +1,29 @@
+# ==============================================================================
+# Boundary Condition Configuration
+# ==============================================================================
+# Maps physical group names (from mesh) to boundary condition types and values.
+#
+# Supported BC types:
+#   - transmissive : Zero-gradient outflow (no values needed)
+#   - inlet        : Fixed primitive state [rho, u, v, p] for Euler
+#                    or [h, u, v] for Shallow Water
+#   - outlet       : Fixed outlet pressure [p] for Euler, or [h] for SWE
+#   - wall         : Reflective wall (no values needed for slip wall)
+#
+# The boundary names must match the physical group names in the mesh.
+# ==============================================================================
+
+boundaries:
+  inlet:
+    type: inlet
+    values: [1.225, 100.0, 0.0, 101325.0]   # rho, u, v, p
+
+  outlet:
+    type: outlet
+    values: [101325.0]                        # back pressure
+
+  top_wall:
+    type: wall
+
+  bottom_wall:
+    type: wall

@@ -149,6 +149,9 @@ public:
     // Local-to-global cell index mapping
     std::vector<Index> l2g_cells;
 
+    // Local-to-global node index mapping
+    std::vector<Index> l2g_nodes;
+
     // -------------------------------------------------------------------------
     // MPI Communication Maps
     // -------------------------------------------------------------------------

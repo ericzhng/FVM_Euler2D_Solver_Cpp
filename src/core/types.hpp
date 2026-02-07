@@ -136,4 +136,12 @@ inline EquationType parse_equation_type(const std::string& s) {
     return EquationType::Euler;  // Default
 }
 
+inline BCType parse_bc_type(const std::string& s) {
+    if (s == "transmissive") return BCType::Transmissive;
+    if (s == "inlet") return BCType::Inlet;
+    if (s == "outlet") return BCType::Outlet;
+    if (s == "wall") return BCType::Wall;
+    return BCType::Transmissive;  // Default
+}
+
 }  // namespace fvm2d

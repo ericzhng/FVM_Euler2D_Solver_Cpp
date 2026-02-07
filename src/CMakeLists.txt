@@ -17,6 +17,12 @@ add_subdirectory(physics)
 add_subdirectory(solver)
 add_subdirectory(time)
 
+# VTK I/O sources (integrated directly into fvm2d_lib)
+set(FVM2D_VTKIO_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/vtkio/vtk_reader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/vtkio/vtk_writer.cpp
+)
+
 # Collect all sources from modules
 set(FVM2D_ALL_SOURCES
     ${FVM2D_BOUNDARY_SOURCES}
@@ -26,5 +32,6 @@ set(FVM2D_ALL_SOURCES
     ${FVM2D_PHYSICS_SOURCES}
     ${FVM2D_SOLVER_SOURCES}
     ${FVM2D_TIME_SOURCES}
+    ${FVM2D_VTKIO_SOURCES}
     PARENT_SCOPE
 )

@@ -1,8 +1,10 @@
 #include "core/config.hpp"
+#include "boundary/boundary_condition.hpp"
 #include <yaml-cpp/yaml.h>
 #include <mpi.h>
 #include <stdexcept>
 #include <sstream>
+#include <iostream>
 
 namespace fvm2d {
 
@@ -21,6 +23,9 @@ SolverConfig parse_config(const std::string& filepath) {
                 std::string mesh_file = root["input"]["mesh_file"].as<std::string>();
                 size_t pos = mesh_file.find_last_of("/\\");
                 config.mesh_dir = (pos != std::string::npos) ? mesh_file.substr(0, pos) : ".";
+            }
+            if (root["input"]["boundary_config"]) {
+                config.boundary_config_file = root["input"]["boundary_config"].as<std::string>();
             }
         }
 
@@ -107,6 +112,7 @@ void broadcast_config(SolverConfig& config, void* comm_ptr) {
         };
 
         write_string(config.mesh_dir);
+        write_string(config.boundary_config_file);
         oss.write(reinterpret_cast<const char*>(&config.t_end), sizeof(Scalar));
         int eq = static_cast<int>(config.equation);
         oss.write(reinterpret_cast<const char*>(&eq), sizeof(int));
@@ -161,6 +167,7 @@ void broadcast_config(SolverConfig& config, void* comm_ptr) {
         };
 
         config.mesh_dir = read_string();
+        config.boundary_config_file = read_string();
         iss.read(reinterpret_cast<char*>(&config.t_end), sizeof(Scalar));
         int eq;
         iss.read(reinterpret_cast<char*>(&eq), sizeof(int));
@@ -196,6 +203,48 @@ void broadcast_config(SolverConfig& config, void* comm_ptr) {
         iss.read(reinterpret_cast<char*>(&config.physics.gamma), sizeof(Scalar));
         iss.read(reinterpret_cast<char*>(&config.physics.g), sizeof(Scalar));
     }
+}
+
+std::map<std::string, BoundarySpec> parse_boundary_config(const std::string& filepath) {
+    std::map<std::string, BoundarySpec> specs;
+
+    try {
+        YAML::Node root = YAML::LoadFile(filepath);
+
+        if (!root["boundaries"]) {
+            std::cerr << "Warning: No 'boundaries' section in " << filepath << std::endl;
+            return specs;
+        }
+
+        auto boundaries = root["boundaries"];
+        for (auto it = boundaries.begin(); it != boundaries.end(); ++it) {
+            std::string name = it->first.as<std::string>();
+            auto bc_node = it->second;
+
+            BoundarySpec spec;
+
+            // Parse type
+            if (bc_node["type"]) {
+                spec.type = parse_bc_type(bc_node["type"].as<std::string>());
+            }
+
+            // Parse values (optional)
+            if (bc_node["values"]) {
+                auto values_node = bc_node["values"];
+                spec.values.resize(values_node.size());
+                for (std::size_t i = 0; i < values_node.size(); ++i) {
+                    spec.values[i] = values_node[i].as<Scalar>();
+                }
+            }
+
+            specs[name] = spec;
+        }
+
+    } catch (const YAML::Exception& e) {
+        throw std::runtime_error("Error parsing boundary config '" + filepath + "': " + e.what());
+    }
+
+    return specs;
 }
 
 }  // namespace fvm2d
