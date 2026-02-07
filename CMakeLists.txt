@@ -1,11 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(fvm2d VERSION 1.0.0 LANGUAGES CXX)
-
-# =============================================================================
-# CMake Module and Prefix Path
-# =============================================================================
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/extern")
+project(FVM2D_solver VERSION 1.0.0 LANGUAGES CXX)
 
 # =============================================================================
 # C++ Standard
@@ -13,6 +7,12 @@ list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/extern")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# =============================================================================
+# CMake Module and Prefix Path
+# =============================================================================
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/extern")
 
 # =============================================================================
 # Build Type
@@ -29,18 +29,18 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# =============================================================================
-# Compiler Flags
-# =============================================================================
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra -Wpedantic")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
-elseif(MSVC)
-    set(CMAKE_CXX_FLAGS_DEBUG "/Od /W4 /Zi")
-    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG")
-    # Enable parallel compilation on MSVC
-    add_compile_options(/MP)
-endif()
+# # =============================================================================
+# # Compiler Flags
+# # =============================================================================
+# if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+#     set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra -Wpedantic")
+#     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
+# elseif(MSVC)
+#     set(CMAKE_CXX_FLAGS_DEBUG "/Od /W4 /Zi")
+#     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG")
+#     # Enable parallel compilation on MSVC
+#     add_compile_options(/MP)
+# endif()
 
 # =============================================================================
 # Options
@@ -48,8 +48,22 @@ endif()
 option(FVM2D_USE_OPENMP "Enable OpenMP parallelization" ON)
 option(FVM2D_BUILD_TESTS "Build unit tests" OFF)
 
+# Option to build shared libraries (DLLs on Windows, .so on Linux)
+option(BUILD_SHARED "Build shared libraries instead of static" OFF)
+
+# Set library type based on BUILD_SHARED option
+if(BUILD_SHARED)
+    set(FVM2D_LIBRARY_TYPE SHARED)
+    # Enable position independent code for shared libraries
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    # On Windows, automatically export all symbols (optional, we use explicit exports)
+    # set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+else()
+    set(FVM2D_LIBRARY_TYPE STATIC)
+endif()
+
 # =============================================================================
-# Dependencies
+# Find Dependencies
 # =============================================================================
 
 # =============================================================================
@@ -173,7 +187,29 @@ if(FVM2D_USE_OPENMP)
     endif()
 endif()
 
+# =============================================================================
+# Fetch CLI11 for input arguments parsing
+# =============================================================================
+# CLI11 - Use extern version directly
+# Check if the directory exists first to give a clear error if missing
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extern/CLI11-2.6.1/CMakeLists.txt")
+    message(FATAL_ERROR "CLI11 not found in 'extern/CLI11-2.6.1'. Did you clone submodules?")
+endif()
+
+message(STATUS "Using CLI11 from 'extern/CLI11-2.6.1'")
+set(CLI11_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(CLI11_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE) # Added this one
+set(CLI11_BUILD_DOCS OFF CACHE BOOL "" FORCE)     # Added this one
+add_subdirectory(extern/CLI11-2.6.1 EXCLUDE_FROM_ALL)
+
+# =============================================================================
+# Fetch Eigen 
+# =============================================================================
 # Eigen (header-only) - Use extern version directly
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extern/eigen-3.4.1/CMakeLists.txt")
+    message(FATAL_ERROR "eigen3 not found in 'extern/eigen-3.4.1'. Did you clone submodules?")
+endif()
+
 message(STATUS "Using Eigen3 from 'extern/eigen-3.4.1'")
 add_subdirectory(extern/eigen-3.4.1 EXCLUDE_FROM_ALL)
 
@@ -185,7 +221,15 @@ if(EIGEN_IID)
     )
 endif()
 
+# =============================================================================
+# Fetch yaml-cpp for YAML parsing
+# =============================================================================
 # yaml-cpp - Use extern version directly
+# Check if the directory exists first to give a clear error if missing
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extern/yaml-cpp-0.8.0/CMakeLists.txt")
+    message(FATAL_ERROR "yaml-cpp not found in 'extern/yaml-cpp-0.8.0'. Did you clone submodules?")
+endif()
+
 message(STATUS "Using yaml-cpp from 'extern/yaml-cpp-0.8.0'")
 set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
@@ -193,88 +237,36 @@ set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "" FORCE)
 add_subdirectory(extern/yaml-cpp-0.8.0 EXCLUDE_FROM_ALL)
 
 # =============================================================================
-# Source Files (Modular Structure)
-# =============================================================================
-# Each subdirectory defines its sources and propagates them via PARENT_SCOPE
-add_subdirectory(src)
-
-# =============================================================================
-# Library Target
-# =============================================================================
-add_library(fvm2d_lib STATIC ${FVM2D_ALL_SOURCES})
-
-# Add an alias for modern CMake usage
-add_library(fvm2d::fvm2d ALIAS fvm2d_lib)
-
-# Include directories (headers are now alongside sources in src/)
-target_include_directories(fvm2d_lib
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<INSTALL_INTERFACE:include>
-)
-
-# Define FVM_STATIC so embedded vtkio FVM_API resolves to nothing
-target_compile_definitions(fvm2d_lib PRIVATE FVM_STATIC)
-
-# Link dependencies
-target_link_libraries(fvm2d_lib
-    PUBLIC
-        MPI::MPI_CXX
-        Eigen3::Eigen
-        yaml-cpp
-)
-
-# OpenMP support
-if(FVM2D_USE_OPENMP AND OpenMP_FOUND)
-    target_link_libraries(fvm2d_lib PUBLIC OpenMP::OpenMP_CXX)
-    target_compile_definitions(fvm2d_lib PUBLIC FVM2D_USE_OPENMP)
-endif()
-
-# =============================================================================
-# Executable
-# =============================================================================
-add_executable(fvm2d_solver src/main.cpp)
-target_link_libraries(fvm2d_solver PRIVATE fvm2d_lib)
-
-# =============================================================================
-# Installation
+# Installation Configuration
 # =============================================================================
 include(GNUInstallDirs)
 
-# Install executable only (library depends on local extern targets that can't be exported)
-install(TARGETS fvm2d_solver
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
-
-# Install headers (organized by module)
-install(FILES src/fvm2d.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(DIRECTORY src/core src/mesh src/physics src/boundary src/gradient src/limiter src/solver src/time src/io
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILES_MATCHING PATTERN "*.hpp"
-)
-
-# =============================================================================
-# Tests (optional)
-# =============================================================================
-if(FVM2D_BUILD_TESTS)
-    enable_testing()
-    find_package(GTest REQUIRED)
-
-    add_executable(test_fvm2d
-        tests/test_euler_flux.cpp
-        tests/test_gradient.cpp
-        tests/test_limiters.cpp
-    )
-
-    target_link_libraries(test_fvm2d
-        PRIVATE
-            fvm2d_lib
-            GTest::gtest_main
-    )
-
-    include(GoogleTest)
-    gtest_discover_tests(test_fvm2d)
+# Set default install prefix if not specified
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "Install path prefix" FORCE)
 endif()
+
+# Installation directories (set BEFORE add_subdirectory so they're available)
+set(FVM2D_INSTALL_BINDIR ${CMAKE_INSTALL_BINDIR})
+set(FVM2D_INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR})
+set(FVM2D_INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR})
+set(FVM2D_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+
+# =============================================================================
+# Source Modules
+# =============================================================================
+# Each subdirectory defines its own OBJECT library linking to fvm2d_deps.
+add_subdirectory(src)
+
+# =============================================================================
+# Testing Configuration
+# =============================================================================
+# option(BUILD_TESTING "Build the testing tree" OFF)
+
+# if(BUILD_TESTING)
+#     enable_testing()
+#     add_subdirectory(tests)
+# endif()
 
 # =============================================================================
 # Summary
@@ -289,9 +281,10 @@ message(STATUS "  Build Type:   ${CMAKE_BUILD_TYPE}")
 message(STATUS "")
 message(STATUS "  Dependencies:")
 message(STATUS "    MPI:       ${FVM2D_MPI_IMPL}")
+message(STATUS "    OpenMP:    ${FVM2D_USE_OPENMP}")
 message(STATUS "    Eigen3:    Found")
 message(STATUS "    yaml-cpp:  Found")
-message(STATUS "    OpenMP:    ${FVM2D_USE_OPENMP}")
+message(STATUS "    CLI11:     Found")
 message(STATUS "")
 message(STATUS "  Options:")
 message(STATUS "    Build Tests: ${FVM2D_BUILD_TESTS}")

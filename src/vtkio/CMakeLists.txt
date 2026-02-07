@@ -1,4 +1,8 @@
-# VTK I/O Library - VTK and OpenFOAM mesh I/O utilities
+# =============================================================================
+# VTK I/O Module
+# =============================================================================
+# VTK and OpenFOAM mesh I/O utilities
+# =============================================================================
 
 set(VTKIO_SOURCES
     vtk_writer.cpp
@@ -12,17 +16,9 @@ set(VTKIO_HEADERS
 )
 
 # Create library (STATIC or SHARED based on FVM_LIBRARY_TYPE)
-add_library(vtkio ${FVM_LIBRARY_TYPE} ${VTKIO_SOURCES} ${VTKIO_HEADERS})
+add_library(vtkio ${FVM2D_LIBRARY_TYPE} ${VTKIO_SOURCES} ${VTKIO_HEADERS})
 
-# Set library properties
-target_include_directories(vtkio
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
-        $<INSTALL_INTERFACE:include>
-)
-
-# Link common definitions (numeric precision options)
-target_link_libraries(vtkio PUBLIC fvm_common)
+target_link_libraries(vtkio PRIVATE fvm2d_deps)
 
 # Handle export definitions for shared/static builds
 if(BUILD_SHARED)
@@ -58,4 +54,4 @@ endif()
 target_compile_features(vtkio PUBLIC cxx_std_17)
 
 # Export alias for easier usage
-add_library(FVM::vtkio ALIAS vtkio)
+add_library(fvm2d::vtkio ALIAS vtkio)

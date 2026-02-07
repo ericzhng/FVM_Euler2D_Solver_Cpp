@@ -1,37 +1,35 @@
 # =============================================================================
-# FVM2D Source Directory CMakeLists.txt
+# Common compile settings for all modules
 # =============================================================================
-# This file aggregates all source modules into the fvm2d_lib library.
-# Each subdirectory defines its own source files.
-# Headers are now alongside sources in each module folder.
-# =============================================================================
+# INTERFACE library that provides include dirs, compile defs, and deps
+# to all OBJECT libraries defined in subdirectories.
+add_library(fvm2d_deps INTERFACE)
+add_library(fvm2d::fvm2d_deps ALIAS fvm2d_deps)
 
-# Add subdirectories - each returns its source files
-add_subdirectory(boundary)
-add_subdirectory(core)       # Header-only module
-add_subdirectory(gradient)
-add_subdirectory(io)
-add_subdirectory(limiter)    # Header-only module
-add_subdirectory(mesh)
-add_subdirectory(physics)
-add_subdirectory(solver)
-add_subdirectory(time)
-
-# VTK I/O sources (integrated directly into fvm2d_lib)
-set(FVM2D_VTKIO_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/vtkio/vtk_reader.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/vtkio/vtk_writer.cpp
+target_include_directories(fvm2d_deps
+    INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:include>
 )
 
-# Collect all sources from modules
-set(FVM2D_ALL_SOURCES
-    ${FVM2D_BOUNDARY_SOURCES}
-    ${FVM2D_GRADIENT_SOURCES}
-    ${FVM2D_IO_SOURCES}
-    ${FVM2D_MESH_SOURCES}
-    ${FVM2D_PHYSICS_SOURCES}
-    ${FVM2D_SOLVER_SOURCES}
-    ${FVM2D_TIME_SOURCES}
-    ${FVM2D_VTKIO_SOURCES}
-    PARENT_SCOPE
+target_compile_definitions(fvm2d_deps INTERFACE FVM2D_LIBRARY_TYPE)
+target_link_libraries(fvm2d_deps
+    INTERFACE
+        MPI::MPI_CXX
+        Eigen3::Eigen
+        yaml-cpp::yaml-cpp
+        CLI11::CLI11
 )
+
+if(FVM2D_USE_OPENMP AND OpenMP_FOUND)
+    target_link_libraries(fvm2d_deps INTERFACE OpenMP::OpenMP_CXX)
+    target_compile_definitions(fvm2d_deps INTERFACE FVM2D_USE_OPENMP)
+endif()
+
+# Add library subdirectories
+add_subdirectory(common)
+add_subdirectory(fvm2d_lib)
+add_subdirectory(vtkio)
+
+# Add applications subdirectory (executables)
+add_subdirectory(apps)

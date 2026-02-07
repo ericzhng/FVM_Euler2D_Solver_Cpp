@@ -5,12 +5,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug whole_mesh_main",
+            "name": "Debug fvm2d_solver",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/${configurationName}/whole_mesh_main.exe",
+            "program": "${workspaceFolder}/build/debug/bin/Debug/fvm2d_solver.exe",
             "args": [
-                "${workspaceFolder}/examples/rectangle.yaml", "-v"
+                "${workspaceFolder}/config.yaml", "-v"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
