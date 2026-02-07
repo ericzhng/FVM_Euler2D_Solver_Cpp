@@ -78,3 +78,4 @@ venv/
 ENV/
 
 extern/
+output/**
