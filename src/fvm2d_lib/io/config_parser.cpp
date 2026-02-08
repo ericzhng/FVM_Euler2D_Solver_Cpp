@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <iostream>
+#include <filesystem>
 
 namespace fvm2d {
 
@@ -92,6 +93,20 @@ SolverConfig parse_config(const std::string& filepath) {
     } catch (const YAML::Exception& e) {
         throw std::runtime_error("Error parsing config file '" + filepath + "': " + e.what());
     }
+
+    // Resolve relative paths against the config file's parent directory
+    namespace fs = std::filesystem;
+    fs::path config_dir = fs::absolute(filepath).parent_path();
+
+    auto resolve = [&](std::string& path) {
+        if (!path.empty() && fs::path(path).is_relative()) {
+            path = (config_dir / path).string();
+        }
+    };
+
+    resolve(config.mesh_dir);
+    resolve(config.boundary_config_file);
+    resolve(config.output.output_dir);
 
     return config;
 }
