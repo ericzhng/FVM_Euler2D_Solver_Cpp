@@ -38,8 +38,8 @@ target_include_directories(fvm2d_lib
         $<INSTALL_INTERFACE:include>
 )
 
-# Link yaml-cpp (required for YAML parsing) and common definitions
-target_link_libraries(fvm2d_lib PUBLIC yaml-cpp::yaml-cpp fvm2d_deps)
+# Link yaml-cpp (required for YAML parsing), vtkio (for output), and common definitions
+target_link_libraries(fvm2d_lib PUBLIC yaml-cpp::yaml-cpp vtkio fvm2d_deps)
 
 # Handle export definitions for shared/static builds
 if(BUILD_SHARED)

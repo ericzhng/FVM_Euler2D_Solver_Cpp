@@ -13,6 +13,7 @@
 
 // Mesh
 #include "mesh/partition_mesh.hpp"
+#include "mesh/mesh_builder.hpp"
 #include "mesh/halo_exchange.hpp"
 
 // Physics
@@ -35,4 +36,3 @@
 
 // I/O
 #include "io/vtk_writer.hpp"
-#include "io/tecplot_writer.hpp"

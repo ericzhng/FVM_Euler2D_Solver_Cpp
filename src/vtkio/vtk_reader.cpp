@@ -241,7 +241,6 @@ namespace fvm
 
     void VTKReader::parseVTKCellData(std::istream &is, MeshInfo &mesh, Index numCells)
     {
-        // Read cell data attributes (simplified - just skip for now)
         std::string line;
         while (is.good())
         {
@@ -260,22 +259,28 @@ namespace fvm
                 break;
             }
 
-            // Skip the data for now (SCALARS, VECTORS, etc.)
             if (keyword == "scalars")
             {
+                // Parse variable name from "SCALARS name type ncomp"
+                std::istringstream iss(line);
+                std::string kw, name, dataType;
+                iss >> kw >> name >> dataType;
+
                 // Read LOOKUP_TABLE line
                 readNonEmptyLine(is);
-                // Skip values
-                for (auto i = 0; i < numCells; ++i)
+
+                // Read values and store in mesh.cellData
+                std::vector<Real> values(numCells);
+                for (Index i = 0; i < numCells; ++i)
                 {
-                    Real val;
-                    is >> val;
+                    is >> values[i];
                 }
+                mesh.cellData[name] = std::move(values);
             }
             else if (keyword == "vectors")
             {
-                // Skip vector values
-                for (auto i = 0; i < numCells; ++i)
+                // Skip vector values for now
+                for (Index i = 0; i < numCells; ++i)
                 {
                     Real x, y, z;
                     is >> x >> y >> z;

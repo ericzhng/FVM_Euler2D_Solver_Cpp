@@ -9,37 +9,23 @@
 namespace fvm2d {
 
 /**
- * @brief Write solution to VTK format (legacy ASCII)
+ * @brief Write solution to VTU format via vtkio library
  *
- * Creates a .vtk file with cell data for visualization in ParaView
+ * Converts PartitionMesh + StateArray to fvm::MeshInfo and delegates
+ * to fvm::VTKWriter for actual file output.
  *
  * @param mesh Partition mesh
- * @param U Solution state array
+ * @param U Solution state array (num_owned_cells x num_vars)
  * @param var_names Variable names for the solution components
- * @param filename Output filename (should end with .vtk)
+ * @param filename Output filename (should end with .vtu or .vtk)
+ * @param binary Whether to use binary encoding (default: true)
  */
-FVM_API void write_vtk(
+FVM_API void write_solution(
     const PartitionMesh& mesh,
     const StateArray& U,
     const std::vector<std::string>& var_names,
-    const std::string& filename
-);
-
-/**
- * @brief Write solution to VTK XML format (.vtu)
- *
- * Creates a .vtu file (unstructured grid) for ParaView
- *
- * @param mesh Partition mesh
- * @param U Solution state array
- * @param var_names Variable names
- * @param filename Output filename (should end with .vtu)
- */
-FVM_API void write_vtu(
-    const PartitionMesh& mesh,
-    const StateArray& U,
-    const std::vector<std::string>& var_names,
-    const std::string& filename
+    const std::string& filename,
+    bool binary = true
 );
 
 }  // namespace fvm2d

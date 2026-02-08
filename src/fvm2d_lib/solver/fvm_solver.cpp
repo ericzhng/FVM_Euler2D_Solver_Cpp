@@ -3,7 +3,7 @@
 #include "physics/shallow_water.hpp"
 #include "time/timestep.hpp"
 #include "io/vtk_writer.hpp"
-#include "io/tecplot_writer.hpp"
+#include "tecplot/tecplot_writer.hpp"
 #include <iostream>
 #include <filesystem>
 
@@ -180,8 +180,10 @@ void FVMSolver::write_output(int step, Scalar time) const {
                           std::to_string(rank_) + "_" +
                           std::to_string(step);
 
-    if (config_.output.format == "vtk") {
-        write_vtk(mesh_, U_, physics_->variable_names(), filename + ".vtk");
+    if (config_.output.format == "vtu") {
+        write_solution(mesh_, U_, physics_->variable_names(), filename + ".vtu", true);
+    } else if (config_.output.format == "vtk") {
+        write_solution(mesh_, U_, physics_->variable_names(), filename + ".vtu", false);
     } else {
         write_tecplot(mesh_, U_, physics_->variable_names(), filename + ".dat", time);
     }

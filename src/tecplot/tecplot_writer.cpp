@@ -1,4 +1,4 @@
-#include "io/tecplot_writer.hpp"
+#include "tecplot/tecplot_writer.hpp"
 #include <fstream>
 #include <iomanip>
 #include <stdexcept>

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "common/fvm_export.hpp"
-#include "core/types.hpp"
-#include "mesh/partition_mesh.hpp"
+#include "fvm2d_lib/core/types.hpp"
+#include "fvm2d_lib/mesh/partition_mesh.hpp"
 #include <string>
 #include <vector>
 

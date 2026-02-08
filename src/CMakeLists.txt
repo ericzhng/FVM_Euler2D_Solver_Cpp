@@ -30,6 +30,7 @@ endif()
 add_subdirectory(common)
 add_subdirectory(fvm2d_lib)
 add_subdirectory(vtkio)
+add_subdirectory(tecplot)
 
 # Add applications subdirectory (executables)
 add_subdirectory(apps)

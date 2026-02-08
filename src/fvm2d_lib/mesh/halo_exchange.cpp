@@ -102,7 +102,7 @@ void HaloExchange::exchange(StateArray& U) {
                   MPI_DOUBLE, neighbor_rank, 0, comm_, &req);
         requests.push_back(req);
         ++idx;
-    }s 
+    }
 
     // Pack and send data
     idx = 0;

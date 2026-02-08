@@ -14,6 +14,7 @@
 
 #include "fvm_export.hpp"
 #include <array>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -57,6 +58,10 @@ namespace fvm
         std::unordered_map<std::string, std::vector<Index>> nodeSets;
         std::unordered_map<std::string, std::vector<Index>> elementSets;
         std::unordered_map<std::string, std::vector<FaceNodes>> faceSets; // boundary groups go here
+
+        // === Cell-centered scalar data ===
+        // variable_name -> values[num_cells]
+        std::map<std::string, std::vector<Real>> cellData;
     };
 
 } // namespace fvm
