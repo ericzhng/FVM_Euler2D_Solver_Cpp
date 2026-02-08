@@ -8,8 +8,20 @@
 #include "boundary/boundary_condition.hpp"
 #include <mpi.h>
 #include <memory>
+#include <array>
 
 namespace fvm2d {
+
+/**
+ * @brief Accumulated wall-clock timings for time integrator sub-phases
+ */
+struct IntegratorTimings {
+    double halo_exchange = 0.0;
+    double gradient      = 0.0;
+    double limiter       = 0.0;
+    double residual      = 0.0;
+    double update        = 0.0;
+};
 
 // Forward declaration
 class HaloExchange;
@@ -34,6 +46,11 @@ public:
      */
     virtual void step(StateArray& U, Scalar dt) = 0;
 
+    /**
+     * @brief Get accumulated sub-phase timings
+     */
+    const IntegratorTimings& timings() const { return timings_; }
+
 protected:
     const PartitionMesh& mesh_;
     const PhysicsModel& physics_;
@@ -56,6 +73,8 @@ protected:
      * @brief Exchange halo data
      */
     void exchange_halo(StateArray& U);
+
+    IntegratorTimings timings_;
 };
 
 /**

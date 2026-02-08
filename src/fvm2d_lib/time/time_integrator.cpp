@@ -24,20 +24,34 @@ TimeIntegrator::TimeIntegrator(
 TimeIntegrator::~TimeIntegrator() = default;
 
 void TimeIntegrator::exchange_halo(StateArray& U) {
+    double t0 = MPI_Wtime();
     halo_exchange_->exchange(U);
+    timings_.halo_exchange += MPI_Wtime() - t0;
 }
 
 StateArray TimeIntegrator::compute_full_residual(const StateArray& U) {
+    double t0, t1;
+
     // Compute gradients
+    t0 = MPI_Wtime();
     gradients_ = compute_gradients_gaussian(
         mesh_, U, config_.spatial.gradient_over_relaxation);
+    t1 = MPI_Wtime();
+    timings_.gradient += t1 - t0;
 
     // Compute limiters
+    t0 = t1;
     limiters_ = compute_limiters(
         mesh_, U, gradients_, config_.spatial.limiter_type);
+    t1 = MPI_Wtime();
+    timings_.limiter += t1 - t0;
 
     // Compute residual
-    return compute_residual(mesh_, U, gradients_, limiters_, bcs_, physics_, config_);
+    t0 = t1;
+    auto res = compute_residual(mesh_, U, gradients_, limiters_, bcs_, physics_, config_);
+    timings_.residual += MPI_Wtime() - t0;
+
+    return res;
 }
 
 // ExplicitEuler implementation
@@ -49,9 +63,11 @@ void ExplicitEuler::step(StateArray& U, Scalar dt) {
     StateArray residual = compute_full_residual(U);
 
     // Update solution: U^{n+1} = U^n - dt * R(U^n)
+    double t0 = MPI_Wtime();
     for (Index i = 0; i < mesh_.num_owned_cells; ++i) {
         U.row(i) -= dt * residual.row(i);
     }
+    timings_.update += MPI_Wtime() - t0;
 }
 
 // RungeKutta2 implementation
@@ -75,6 +91,7 @@ void RungeKutta2::step(StateArray& U, Scalar dt) {
     // Stage 1: U* = U^n - dt * R(U^n)
     StateArray residual = compute_full_residual(U);
 
+    double t0 = MPI_Wtime();
     for (Index i = 0; i < mesh_.num_owned_cells; ++i) {
         U_star_.row(i) = U.row(i) - dt * residual.row(i);
     }
@@ -83,6 +100,7 @@ void RungeKutta2::step(StateArray& U, Scalar dt) {
     for (Index i = mesh_.num_owned_cells; i < mesh_.total_cells(); ++i) {
         U_star_.row(i) = U.row(i);
     }
+    timings_.update += MPI_Wtime() - t0;
 
     // Exchange halo data for stage 2
     exchange_halo(U_star_);
@@ -90,9 +108,11 @@ void RungeKutta2::step(StateArray& U, Scalar dt) {
     // Stage 2: U^{n+1} = 0.5 * (U^n + U* - dt * R(U*))
     residual = compute_full_residual(U_star_);
 
+    t0 = MPI_Wtime();
     for (Index i = 0; i < mesh_.num_owned_cells; ++i) {
         U.row(i) = 0.5 * (U.row(i) + U_star_.row(i) - dt * residual.row(i));
     }
+    timings_.update += MPI_Wtime() - t0;
 }
 
 std::unique_ptr<TimeIntegrator> create_time_integrator(

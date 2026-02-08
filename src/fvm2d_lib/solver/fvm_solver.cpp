@@ -6,6 +6,7 @@
 #include "tecplot/tecplot_writer.hpp"
 #include <iostream>
 #include <filesystem>
+#include <iomanip>
 
 namespace fvm2d {
 
@@ -194,8 +195,16 @@ void FVMSolver::run() {
     int step = 0;
     Scalar dt = config_.time.dt_initial;
 
+    // Profiling accumulators (wall-clock seconds)
+    double time_compute_dt = 0.0;
+    double time_step       = 0.0;
+    double time_io         = 0.0;
+    double t0, t1;
+
     // Write initial condition
+    t0 = MPI_Wtime();
     write_output(step, t);
+    time_io += MPI_Wtime() - t0;
 
     if (rank_ == 0) {
         std::cout << "Starting simulation..." << std::endl;
@@ -203,20 +212,30 @@ void FVMSolver::run() {
         std::cout << "  CFL = " << config_.time.cfl << std::endl;
     }
 
+    double wall_start = MPI_Wtime();
+
     while (t < config_.t_end) {
-        // Compute time step     
+        // Compute time step
+        t0 = MPI_Wtime();
         dt = compute_dt();
         dt = std::min(dt, config_.t_end - t);
+        t1 = MPI_Wtime();
+        time_compute_dt += t1 - t0;
 
         // Advance solution
+        t0 = t1;
         integrator_->step(U_, dt);
+        t1 = MPI_Wtime();
+        time_step += t1 - t0;
 
         t += dt;
         ++step;
 
         // Output at intervals
         if (step % config_.output.interval == 0) {
+            t0 = MPI_Wtime();
             write_output(step, t);
+            time_io += MPI_Wtime() - t0;
 
             if (rank_ == 0) {
                 std::cout << "Step " << step
@@ -227,9 +246,62 @@ void FVMSolver::run() {
     }
 
     // Final output
+    t0 = MPI_Wtime();
     write_output(step, t);
+    time_io += MPI_Wtime() - t0;
 
+    double wall_total = MPI_Wtime() - wall_start;
+
+    // --- Profiling Summary (rank 0 only) ---
     if (rank_ == 0) {
+        const auto& ti = integrator_->timings();
+        double time_integrator_sub = ti.halo_exchange + ti.gradient
+                                   + ti.limiter + ti.residual + ti.update;
+
+        std::cout << "\n";
+        std::cout << "========================================\n";
+        std::cout << " Profiling Summary\n";
+        std::cout << "========================================\n";
+        std::cout << std::fixed << std::setprecision(4);
+        std::cout << "  Total steps:      " << step << "\n";
+        std::cout << "  Wall time:        " << wall_total << " s\n";
+        std::cout << "  Avg step time:    " << (step > 0 ? wall_total / step * 1000.0 : 0.0) << " ms\n";
+        std::cout << "----------------------------------------\n";
+        std::cout << "  High-level breakdown:\n";
+        std::cout << "    Compute dt:     " << std::setw(10) << time_compute_dt
+                  << " s  (" << std::setw(5) << std::setprecision(1)
+                  << (wall_total > 0 ? time_compute_dt / wall_total * 100 : 0) << "%)\n";
+        std::cout << std::setprecision(4);
+        std::cout << "    Time stepping:  " << std::setw(10) << time_step
+                  << " s  (" << std::setw(5) << std::setprecision(1)
+                  << (wall_total > 0 ? time_step / wall_total * 100 : 0) << "%)\n";
+        std::cout << std::setprecision(4);
+        std::cout << "    File I/O:       " << std::setw(10) << time_io
+                  << " s  (" << std::setw(5) << std::setprecision(1)
+                  << (wall_total > 0 ? time_io / wall_total * 100 : 0) << "%)\n";
+        std::cout << "----------------------------------------\n";
+        std::cout << std::setprecision(4);
+        std::cout << "  Time stepping breakdown:\n";
+        std::cout << "    Halo exchange:  " << std::setw(10) << ti.halo_exchange
+                  << " s  (" << std::setw(5) << std::setprecision(1)
+                  << (time_step > 0 ? ti.halo_exchange / time_step * 100 : 0) << "%)\n";
+        std::cout << std::setprecision(4);
+        std::cout << "    Gradient:       " << std::setw(10) << ti.gradient
+                  << " s  (" << std::setw(5) << std::setprecision(1)
+                  << (time_step > 0 ? ti.gradient / time_step * 100 : 0) << "%)\n";
+        std::cout << std::setprecision(4);
+        std::cout << "    Limiter:        " << std::setw(10) << ti.limiter
+                  << " s  (" << std::setw(5) << std::setprecision(1)
+                  << (time_step > 0 ? ti.limiter / time_step * 100 : 0) << "%)\n";
+        std::cout << std::setprecision(4);
+        std::cout << "    Residual:       " << std::setw(10) << ti.residual
+                  << " s  (" << std::setw(5) << std::setprecision(1)
+                  << (time_step > 0 ? ti.residual / time_step * 100 : 0) << "%)\n";
+        std::cout << std::setprecision(4);
+        std::cout << "    Solution update:" << std::setw(10) << ti.update
+                  << " s  (" << std::setw(5) << std::setprecision(1)
+                  << (time_step > 0 ? ti.update / time_step * 100 : 0) << "%)\n";
+        std::cout << "========================================\n";
         std::cout << "Simulation complete. Steps: " << step << std::endl;
     }
 }
