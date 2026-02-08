@@ -1,0 +1,38 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "cmake_build",
+            "type": "shell",
+            "command": "C:/Software/CMake/bin/cmake.exe --build --preset debug",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "build_and_run_mpi",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/start_mpi_debug.bat 4",
+            "isBackground": true,
+            "problemMatcher": {
+                "owner": "mpi",
+                "fileLocation": ["relative", "${workspaceFolder}"],
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".",
+                    "endsPattern": "launch.json updated successfully"
+                }
+            }
+        }
+    ]
+}

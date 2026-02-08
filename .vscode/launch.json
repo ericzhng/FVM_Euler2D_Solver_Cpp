@@ -1,21 +1,42 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug fvm2d_solver",
+            "name": "Single Rank Debug",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/debug/bin/Debug/fvm2d_solver.exe",
             "args": [
-                "${workspaceFolder}/config.yaml", "-v"
+                "${workspaceFolder}/output/channel_config.yaml"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
             "console": "externalTerminal"
+        },
+        {
+            "name": "Attach Rank 0",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processId": "4112"
+        },
+        {
+            "name": "Attach Rank 1",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processId": "18108"
+        },
+        {
+            "name": "Attach Rank 2",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processId": "18808"
+        },
+        {
+            "name": "Attach Rank 3",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processId": "15388"
         }
     ]
 }
