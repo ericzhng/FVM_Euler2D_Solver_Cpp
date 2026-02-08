@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(tree:*)",
-      "Bash(del \"e:\\\\2026-02\\\\FVM_Euler2D_Solver_Cpp\\\\src\\\\main.cpp\")"
+      "Bash(del \"e:\\\\2026-02\\\\FVM_Euler2D_Solver_Cpp\\\\src\\\\main.cpp\")",
+      "Bash(where:*)",
+      "Bash(dir /s /b \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\*\\\\cmake.exe\")",
+      "Bash(dir /s /b \"C:\\\\Program Files \\(x86\\)\\\\Microsoft Visual Studio\\\\2022\\\\*\\\\cmake.exe\")",
+      "Bash(del \"e:\\\\2026-02\\\\FVM_Euler2D_Solver_Cpp\\\\scripts\\\\start_mpi_debug.ps1\")"
     ]
   }
 }

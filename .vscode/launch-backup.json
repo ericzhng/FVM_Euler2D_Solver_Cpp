@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug fvm2d_solver",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/bin/Debug/fvm2d_solver.exe",
+            "args": [
+                "${workspaceFolder}/config.yaml"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "externalTerminal"
+        },
+        {
+            "name": "Attach MPI Rank",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processId": "${input:mpiPid}"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "mpiPid",
+            "type": "promptString",
+            "description": "Enter PID from terminal output (e.g. Rank 0 on AIBOT, PID=12345)"
+        }
+    ]
+}
