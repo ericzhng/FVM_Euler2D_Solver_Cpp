@@ -78,4 +78,5 @@ venv/
 ENV/
 
 extern/
+example/**
 output/**
