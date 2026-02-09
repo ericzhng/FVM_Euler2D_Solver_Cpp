@@ -252,13 +252,24 @@ int main(int argc, char *argv[])
                 }
                 global_elements[gc] = std::move(global_cell);
 
-                if (i < static_cast<fvm::Index>(mesh_data.elementTypes.size()))
+                // NEW CODE (Fix - forces correct types based on geometry)
+                if (local_cell.size() == 4)
                 {
+                    global_element_types[gc] = 9; // VTK_QUAD
+                }
+                else if (local_cell.size() == 3)
+                {
+                    global_element_types[gc] = 5; // VTK_TRIANGLE
+                }
+                else if (i < static_cast<fvm::Index>(mesh_data.elementTypes.size()))
+                {
+                    // Fallback to input type for non-standard cells (e.g. lines, polys)
                     global_element_types[gc] = mesh_data.elementTypes[i];
                 }
                 else
                 {
-                    global_element_types[gc] = (local_cell.size() == 3) ? 5 : 9;
+                    // Default fallback
+                    global_element_types[gc] = 9;
                 }
             }
         }
