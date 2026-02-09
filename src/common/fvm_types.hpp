@@ -62,6 +62,10 @@ namespace fvm
         // === Cell-centered scalar data ===
         // variable_name -> values[num_cells]
         std::map<std::string, std::vector<Real>> cellData;
+
+        // === Point-centered scalar data ===
+        // variable_name -> values[num_nodes]
+        std::map<std::string, std::vector<Real>> pointData;
     };
 
 } // namespace fvm

@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <algorithm>
 #include <stdexcept>
+#include <cmath>
 
 #include "CLI/CLI.hpp"
 #include "common/fvm_types.hpp"
@@ -67,6 +68,25 @@ std::string detect_prefix(const std::string& results_dir) {
     return "solution";
 }
 
+// Position key for node deduplication (quantized to avoid floating-point issues)
+struct PositionKey {
+    int64_t x, y, z;
+    bool operator<(const PositionKey& o) const {
+        if (x != o.x) return x < o.x;
+        if (y != o.y) return y < o.y;
+        return z < o.z;
+    }
+};
+
+PositionKey make_pos_key(const fvm::Point3D& p) {
+    // Quantize to ~1e-6 precision (sufficient for mesh coordinates)
+    return {
+        static_cast<int64_t>(std::round(p[0] * 1e6)),
+        static_cast<int64_t>(std::round(p[1] * 1e6)),
+        static_cast<int64_t>(std::round(p[2] * 1e6))
+    };
+}
+
 int main(int argc, char* argv[]) {
     // --- CLI Parsing ---
     std::string results_dir;
@@ -109,26 +129,20 @@ int main(int argc, char* argv[]) {
         }
         std::cout << "Found " << num_partitions << " partitions" << std::endl;
 
-        // Load partition info
+        // Load partition info (we only need l2g_cells and num_owned_cells)
         std::vector<fvm2d::PartitionInfo> partitions(num_partitions);
         for (int r = 0; r < num_partitions; ++r) {
             std::string json_path = mesh_dir + "/partition_" + std::to_string(r) + ".json";
             partitions[r] = fvm2d::load_partition_info(json_path);
         }
 
-        // Compute global sizes
+        // Compute global cell count from l2g_cells
         fvm::Index global_num_cells = 0;
-        fvm::Index global_num_nodes = 0;
         for (int r = 0; r < num_partitions; ++r) {
             for (auto gc : partitions[r].l2g_cells) {
                 global_num_cells = std::max(global_num_cells, static_cast<fvm::Index>(gc) + 1);
             }
-            for (auto gn : partitions[r].l2g_nodes) {
-                global_num_nodes = std::max(global_num_nodes, static_cast<fvm::Index>(gn) + 1);
-            }
         }
-        std::cout << "Global mesh: " << global_num_cells << " cells, "
-                  << global_num_nodes << " nodes" << std::endl;
 
         // Auto-detect prefix if not provided
         if (prefix.empty()) {
@@ -153,20 +167,89 @@ int main(int argc, char* argv[]) {
         }
         fs::create_directories(output_dir);
 
+        // --- Build global mesh from partition VTU files ---
+        // Use position-based node deduplication instead of l2g_nodes,
+        // because l2g_nodes uses the partitioner's internal global numbering
+        // which may differ from the VTU file's node ordering.
+        std::map<PositionKey, fvm::Index> pos_to_global;
+        std::vector<fvm::Point3D> global_nodes;
+        std::vector<std::vector<fvm::Index>> local_to_global(num_partitions);
+
+        std::vector<fvm::CellConnectivity> global_elements(global_num_cells);
+        std::vector<fvm::Index> global_element_types(global_num_cells, 0);
+
+        for (int r = 0; r < num_partitions; ++r) {
+            // Find partition mesh file
+            std::string mesh_file;
+            if (fs::exists(mesh_dir + "/partition_" + std::to_string(r) + ".vtu"))
+                mesh_file = mesh_dir + "/partition_" + std::to_string(r) + ".vtu";
+            else if (fs::exists(mesh_dir + "/partition_" + std::to_string(r) + ".vtk"))
+                mesh_file = mesh_dir + "/partition_" + std::to_string(r) + ".vtk";
+            else {
+                std::cerr << "Warning: No mesh VTU/VTK for partition " << r << std::endl;
+                continue;
+            }
+
+            fvm::MeshInfo mesh_data = fvm::VTKReader::read(mesh_file);
+            const auto& pinfo = partitions[r];
+
+            // Build local-to-global node mapping by position deduplication
+            local_to_global[r].resize(mesh_data.nodes.size());
+            for (size_t i = 0; i < mesh_data.nodes.size(); ++i) {
+                auto key = make_pos_key(mesh_data.nodes[i]);
+                auto it = pos_to_global.find(key);
+                if (it == pos_to_global.end()) {
+                    fvm::Index gn = static_cast<fvm::Index>(global_nodes.size());
+                    pos_to_global[key] = gn;
+                    global_nodes.push_back(mesh_data.nodes[i]);
+                    local_to_global[r][i] = gn;
+                } else {
+                    local_to_global[r][i] = it->second;
+                }
+            }
+
+            // Map owned cells: remap local node indices to global via position map
+            fvm::Index num_owned = pinfo.num_owned_cells;
+            for (fvm::Index i = 0; i < num_owned
+                 && i < static_cast<fvm::Index>(mesh_data.elements.size()); ++i) {
+                auto gc = pinfo.l2g_cells[i];
+                const auto& local_cell = mesh_data.elements[i];
+
+                fvm::CellConnectivity global_cell(local_cell.size());
+                for (size_t j = 0; j < local_cell.size(); ++j) {
+                    global_cell[j] = local_to_global[r][local_cell[j]];
+                }
+                global_elements[gc] = std::move(global_cell);
+
+                if (i < static_cast<fvm::Index>(mesh_data.elementTypes.size())) {
+                    global_element_types[gc] = mesh_data.elementTypes[i];
+                } else {
+                    global_element_types[gc] = (local_cell.size() == 3) ? 5 : 9;
+                }
+            }
+        }
+
+        std::cout << "Global mesh: " << global_num_cells << " cells, "
+                  << global_nodes.size() << " unique nodes" << std::endl;
+
+        // --- Build local-to-global node maps for solution files ---
+        // Solution VTU files may have a different (subset) of nodes than mesh VTUs.
+        // We build the mapping on-the-fly per timestep using the same position approach.
+
         // --- Process each timestep ---
         for (int step : timesteps) {
             std::cout << "  Processing step " << step << "..." << std::flush;
 
-            // Allocate global arrays
+            // Start with the pre-built global mesh (nodes + connectivity)
             fvm::MeshInfo global_mesh;
-            global_mesh.nodes.resize(global_num_nodes, {0.0, 0.0, 0.0});
-            global_mesh.elements.resize(global_num_cells);
-            global_mesh.elementTypes.resize(global_num_cells, 0);
+            global_mesh.nodes = global_nodes;
+            global_mesh.elements = global_elements;
+            global_mesh.elementTypes = global_element_types;
 
             // Track which variables we have
             std::map<std::string, std::vector<fvm::Real>> global_cell_data;
 
-            // Read each partition and merge
+            // Read each partition's solution and merge cell data
             for (int r = 0; r < num_partitions; ++r) {
                 std::string filename = results_dir + "/" + prefix + "_"
                     + std::to_string(r) + "_" + std::to_string(step) + "." + ext;
@@ -179,39 +262,15 @@ int main(int argc, char* argv[]) {
                 fvm::MeshInfo part_mesh = fvm::VTKReader::read(filename);
                 const auto& pinfo = partitions[r];
 
-                // Map nodes to global positions
-                for (size_t i = 0; i < part_mesh.nodes.size() && i < pinfo.l2g_nodes.size(); ++i) {
-                    auto gn = pinfo.l2g_nodes[i];
-                    global_mesh.nodes[gn] = part_mesh.nodes[i];
-                }
-
-                // Map cells: remap local node indices to global
+                // Map cell data from solution file using l2g_cells
                 fvm::Index num_owned = pinfo.num_owned_cells;
-                for (fvm::Index i = 0; i < num_owned && i < static_cast<fvm::Index>(part_mesh.elements.size()); ++i) {
-                    auto gc = pinfo.l2g_cells[i];
-                    const auto& local_cell = part_mesh.elements[i];
-
-                    fvm::CellConnectivity global_cell(local_cell.size());
-                    for (size_t j = 0; j < local_cell.size(); ++j) {
-                        global_cell[j] = pinfo.l2g_nodes[local_cell[j]];
-                    }
-                    global_mesh.elements[gc] = std::move(global_cell);
-
-                    // Set element type
-                    if (i < static_cast<fvm::Index>(part_mesh.elementTypes.size())) {
-                        global_mesh.elementTypes[gc] = part_mesh.elementTypes[i];
-                    } else {
-                        global_mesh.elementTypes[gc] = (local_cell.size() == 3) ? 5 : 9;
-                    }
-                }
-
-                // Map cell data
                 for (const auto& [name, values] : part_mesh.cellData) {
                     auto& gdata = global_cell_data[name];
                     if (gdata.empty()) {
                         gdata.resize(global_num_cells, 0.0);
                     }
-                    for (fvm::Index i = 0; i < num_owned && i < static_cast<fvm::Index>(values.size()); ++i) {
+                    for (fvm::Index i = 0; i < num_owned
+                         && i < static_cast<fvm::Index>(values.size()); ++i) {
                         auto gc = pinfo.l2g_cells[i];
                         gdata[gc] = values[i];
                     }

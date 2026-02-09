@@ -14,14 +14,16 @@ void write_solution(
     // Build MeshInfo from PartitionMesh + StateArray
     fvm::MeshInfo info;
 
-    // Copy node coordinates (Vector2d -> Point3D with z=0)
+    // Copy ALL node coordinates (Vector2d -> Point3D with z=0).
+    // We include every partition node (not just those used by owned cells)
+    // so that the reconstruction tool can map every global node via l2g_nodes.
     const Index num_nodes = mesh.num_nodes();
     info.nodes.resize(num_nodes);
     for (Index i = 0; i < num_nodes; ++i) {
         info.nodes[i] = {mesh.node_coords[i].x(), mesh.node_coords[i].y(), 0.0};
     }
 
-    // Copy cell connectivity (owned cells only)
+    // Copy cell connectivity (owned cells only) using original local indices
     const Index num_cells = mesh.num_owned_cells;
     info.elements.resize(num_cells);
     info.elementTypes.resize(num_cells);

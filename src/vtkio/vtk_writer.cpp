@@ -224,6 +224,21 @@ namespace fvm
             ofs << "        </DataArray>\n";
             ofs << "      </Cells>\n";
 
+            // Point Data
+            if (!mesh.pointData.empty())
+            {
+                ofs << "      <PointData>\n";
+                for (const auto &[name, values] : mesh.pointData)
+                {
+                    std::string encoded = encode_data_block(values.data(), values.size());
+                    ofs << "        <DataArray type=\"Float64\" Name=\"" << name
+                        << "\" format=\"binary\">\n";
+                    ofs << "          " << encoded << "\n";
+                    ofs << "        </DataArray>\n";
+                }
+                ofs << "      </PointData>\n";
+            }
+
             // Cell Data
             if (!mesh.cellData.empty())
             {
@@ -311,6 +326,25 @@ namespace fvm
             ofs << "        </DataArray>\n";
 
             ofs << "      </Cells>\n";
+
+            // Point Data
+            if (!mesh.pointData.empty())
+            {
+                ofs << "      <PointData>\n";
+                for (const auto &[name, values] : mesh.pointData)
+                {
+                    ofs << "        <DataArray type=\"Float64\" Name=\"" << name
+                        << "\" format=\"ascii\">\n";
+                    ofs << "          ";
+                    for (const auto &v : values)
+                    {
+                        ofs << v << " ";
+                    }
+                    ofs << "\n";
+                    ofs << "        </DataArray>\n";
+                }
+                ofs << "      </PointData>\n";
+            }
 
             // Cell Data
             if (!mesh.cellData.empty())

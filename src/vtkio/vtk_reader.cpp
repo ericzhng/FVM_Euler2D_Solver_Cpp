@@ -1,10 +1,12 @@
 #include "vtkio/vtk_reader.hpp"
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 namespace fvm
 {
@@ -352,6 +354,90 @@ namespace fvm
                    str.compare(0, prefix.length(), prefix) == 0;
         }
 
+        // Base64 decoding table
+        static const unsigned char b64_decode_table[256] = {
+            255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+            255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+            255,255,255,255,255,255,255,255,255,255,255, 62,255,255,255, 63,
+             52, 53, 54, 55, 56, 57, 58, 59, 60, 61,255,255,255,  0,255,255,
+            255,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
+             15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,255,255,255,255,255,
+            255, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+             41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,255,255,255,255,255,
+            255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+            255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+            255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+            255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+            255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+            255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+            255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+            255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+        };
+
+        std::vector<unsigned char> base64_decode(const std::string &input)
+        {
+            // Strip whitespace
+            std::string clean;
+            clean.reserve(input.size());
+            for (char c : input)
+            {
+                if (c != ' ' && c != '\t' && c != '\n' && c != '\r')
+                    clean.push_back(c);
+            }
+
+            std::vector<unsigned char> result;
+            if (clean.size() < 4)
+                return result;
+
+            result.reserve(clean.size() * 3 / 4);
+
+            for (size_t i = 0; i + 3 < clean.size(); i += 4)
+            {
+                unsigned char a = b64_decode_table[static_cast<unsigned char>(clean[i])];
+                unsigned char b = b64_decode_table[static_cast<unsigned char>(clean[i + 1])];
+                unsigned char c = b64_decode_table[static_cast<unsigned char>(clean[i + 2])];
+                unsigned char d = b64_decode_table[static_cast<unsigned char>(clean[i + 3])];
+
+                result.push_back((a << 2) | (b >> 4));
+                if (clean[i + 2] != '=')
+                    result.push_back((b << 4) | (c >> 2));
+                if (clean[i + 3] != '=')
+                    result.push_back((c << 6) | d);
+            }
+            return result;
+        }
+
+        // Decode a VTK binary data block: [uint32 header (byte count)] + [raw data]
+        // Returns raw data bytes (after the header).
+        std::vector<unsigned char> decode_vtk_binary_block(const std::string &b64)
+        {
+            auto bytes = base64_decode(b64);
+            if (bytes.size() < sizeof(uint32_t))
+                return {};
+
+            uint32_t nbytes;
+            std::memcpy(&nbytes, bytes.data(), sizeof(uint32_t));
+
+            size_t data_start = sizeof(uint32_t);
+            size_t data_end = data_start + nbytes;
+            if (data_end > bytes.size())
+                data_end = bytes.size();
+
+            return std::vector<unsigned char>(bytes.begin() + data_start,
+                                              bytes.begin() + data_end);
+        }
+
+        // Extract typed array from raw bytes
+        template <typename T>
+        std::vector<T> bytes_to_vector(const std::vector<unsigned char> &raw)
+        {
+            size_t count = raw.size() / sizeof(T);
+            std::vector<T> result(count);
+            if (count > 0)
+                std::memcpy(result.data(), raw.data(), count * sizeof(T));
+            return result;
+        }
+
     } // namespace
 
     MeshInfo VTKReader::readVTU(const std::string &filename)
@@ -398,7 +484,9 @@ namespace fvm
         {
             None,
             Points,
-            Cells
+            Cells,
+            PointData,
+            CellData
         };
         Section currentSection = Section::None;
         std::string currentArrayName;
@@ -426,23 +514,40 @@ namespace fvm
             {
                 currentSection = Section::None;
             }
+            else if (line.find("<PointData") != std::string::npos)
+            {
+                currentSection = Section::PointData;
+            }
+            else if (line.find("</PointData>") != std::string::npos)
+            {
+                currentSection = Section::None;
+            }
+            else if (line.find("<CellData") != std::string::npos)
+            {
+                currentSection = Section::CellData;
+            }
+            else if (line.find("</CellData>") != std::string::npos)
+            {
+                currentSection = Section::None;
+            }
             else if (line.find("<DataArray") != std::string::npos)
             {
                 currentArrayName = getXMLAttribute(line, "Name");
+                std::string format = getXMLAttribute(line, "format");
+                std::string dataType = getXMLAttribute(line, "type");
+                bool isBinary = (format == "binary");
 
-                // Check if data is on same line or following lines
+                // Read data content (between > and </DataArray>)
                 auto closeTag = line.find("</DataArray>");
                 auto endBracket = line.find('>');
 
                 std::string dataContent;
                 if (closeTag != std::string::npos && endBracket != std::string::npos)
                 {
-                    // Data is inline
                     dataContent = line.substr(endBracket + 1, closeTag - endBracket - 1);
                 }
                 else
                 {
-                    // Data is on following lines
                     std::ostringstream oss;
                     while (std::getline(ifs, line))
                     {
@@ -453,43 +558,122 @@ namespace fvm
                     dataContent = oss.str();
                 }
 
-                std::istringstream dataStream(dataContent);
-
                 if (currentSection == Section::Points)
                 {
-                    // Read point coordinates
-                    for (auto i = 0; i < numPoints; ++i)
+                    if (isBinary)
                     {
-                        Point3D pt;
-                        dataStream >> pt[0] >> pt[1] >> pt[2];
-                        mesh.nodes.push_back(pt);
+                        auto raw = decode_vtk_binary_block(dataContent);
+                        auto coords = bytes_to_vector<double>(raw);
+                        for (size_t i = 0; i + 2 < coords.size(); i += 3)
+                        {
+                            mesh.nodes.push_back({coords[i], coords[i + 1], coords[i + 2]});
+                        }
+                    }
+                    else
+                    {
+                        std::istringstream ds(dataContent);
+                        for (Index i = 0; i < numPoints; ++i)
+                        {
+                            Point3D pt{};
+                            ds >> pt[0] >> pt[1] >> pt[2];
+                            mesh.nodes.push_back(pt);
+                        }
                     }
                 }
                 else if (currentSection == Section::Cells)
                 {
                     if (currentArrayName == "connectivity")
                     {
-                        Index idx;
-                        while (dataStream >> idx)
+                        if (isBinary)
                         {
-                            connectivity.push_back(idx);
+                            auto raw = decode_vtk_binary_block(dataContent);
+                            auto vals = bytes_to_vector<int32_t>(raw);
+                            connectivity.reserve(vals.size());
+                            for (auto v : vals)
+                                connectivity.push_back(static_cast<Index>(v));
+                        }
+                        else
+                        {
+                            std::istringstream ds(dataContent);
+                            Index idx;
+                            while (ds >> idx)
+                                connectivity.push_back(idx);
                         }
                     }
                     else if (currentArrayName == "offsets")
                     {
-                        Index off;
-                        while (dataStream >> off)
+                        if (isBinary)
                         {
-                            offsets.push_back(off);
+                            auto raw = decode_vtk_binary_block(dataContent);
+                            auto vals = bytes_to_vector<int32_t>(raw);
+                            offsets.reserve(vals.size());
+                            for (auto v : vals)
+                                offsets.push_back(static_cast<Index>(v));
+                        }
+                        else
+                        {
+                            std::istringstream ds(dataContent);
+                            Index off;
+                            while (ds >> off)
+                                offsets.push_back(off);
                         }
                     }
                     else if (currentArrayName == "types")
                     {
-                        int cellType;
-                        while (dataStream >> cellType)
+                        if (isBinary)
                         {
-                            mesh.elementTypes.push_back(cellType);
+                            auto raw = decode_vtk_binary_block(dataContent);
+                            auto vals = bytes_to_vector<uint8_t>(raw);
+                            for (auto v : vals)
+                                mesh.elementTypes.push_back(static_cast<int>(v));
                         }
+                        else
+                        {
+                            std::istringstream ds(dataContent);
+                            int cellType;
+                            while (ds >> cellType)
+                                mesh.elementTypes.push_back(cellType);
+                        }
+                    }
+                }
+                else if (currentSection == Section::CellData)
+                {
+                    std::vector<Real> values;
+                    if (isBinary)
+                    {
+                        auto raw = decode_vtk_binary_block(dataContent);
+                        values = bytes_to_vector<double>(raw);
+                    }
+                    else
+                    {
+                        std::istringstream ds(dataContent);
+                        Real val;
+                        while (ds >> val)
+                            values.push_back(val);
+                    }
+                    if (!currentArrayName.empty() && !values.empty())
+                    {
+                        mesh.cellData[currentArrayName] = std::move(values);
+                    }
+                }
+                else if (currentSection == Section::PointData)
+                {
+                    std::vector<Real> values;
+                    if (isBinary)
+                    {
+                        auto raw = decode_vtk_binary_block(dataContent);
+                        values = bytes_to_vector<double>(raw);
+                    }
+                    else
+                    {
+                        std::istringstream ds(dataContent);
+                        Real val;
+                        while (ds >> val)
+                            values.push_back(val);
+                    }
+                    if (!currentArrayName.empty() && !values.empty())
+                    {
+                        mesh.pointData[currentArrayName] = std::move(values);
                     }
                 }
             }
@@ -504,7 +688,7 @@ namespace fvm
         if (!connectivity.empty() && !offsets.empty())
         {
             Index prevOffset = 0;
-            for (auto i = 0; i < offsets.size(); ++i)
+            for (size_t i = 0; i < offsets.size(); ++i)
             {
                 Index currentOffset = offsets[i];
                 CellConnectivity cell;

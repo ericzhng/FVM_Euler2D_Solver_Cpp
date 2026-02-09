@@ -6,7 +6,21 @@
       "Bash(where:*)",
       "Bash(dir /s /b \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\*\\\\cmake.exe\")",
       "Bash(dir /s /b \"C:\\\\Program Files \\(x86\\)\\\\Microsoft Visual Studio\\\\2022\\\\*\\\\cmake.exe\")",
-      "Bash(del \"e:\\\\2026-02\\\\FVM_Euler2D_Solver_Cpp\\\\scripts\\\\start_mpi_debug.ps1\")"
+      "Bash(del \"e:\\\\2026-02\\\\FVM_Euler2D_Solver_Cpp\\\\scripts\\\\start_mpi_debug.ps1\")",
+      "Bash(dir \"e:\\\\2026-02\\\\FVM_Euler2D_Solver_Cpp\\\\example\\\\euler_mesh\\\\merged_solution\"\" 2>NUL || echo \"Directory does not exist \")",
+      "Bash(\"build/debug/bin/Debug/reconstruct2d.exe\" \"example/euler_mesh/results\" \"example/euler_mesh/mesh\" --output \"example/euler_mesh/merged_solution\")",
+      "Bash(cl:*)",
+      "Bash(cmd.exe /c \"cd /d E:\\\\2026-02\\\\FVM_Euler2D_Solver_Cpp && \"\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\"\" >NUL 2>&1 && cl /EHsc /std:c++17 /I src /I \"\"extern/eigen-3.4.1\"\" verify_merge.cpp src/vtkio/vtk_reader.cpp /Fe:verify_merge.exe /DFVM_STATIC 2>&1\")",
+      "Bash(cmd.exe /c \"call \"\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\"\" >NUL 2>&1 && cd /d E:\\\\2026-02\\\\FVM_Euler2D_Solver_Cpp && cl /EHsc /std:c++17 /I src /I \"\"extern/eigen-3.4.1\"\" /DFVM_STATIC verify_merge.cpp src/vtkio/vtk_reader.cpp /Fe:verify_merge.exe\")",
+      "Bash(cmd.exe /c \"\"\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\"\" && cd /d E:\\\\2026-02\\\\FVM_Euler2D_Solver_Cpp && cl /EHsc /std:c++17 /I src /I extern\\\\eigen-3.4.1 /DFVM_STATIC verify_merge.cpp src\\\\vtkio\\\\vtk_reader.cpp /Fe:verify_merge.exe\")",
+      "Bash(\"build/debug/bin/Debug/verify_merge.exe\")",
+      "Bash(build/debug/bin/Debug/reconstruct2d.exe:*)",
+      "Bash(build/debug/bin/Debug/verify_merge.exe)",
+      "Bash(find:*)",
+      "Bash(python3:*)",
+      "Bash(powershell -Command \"Get-Content ''example\\\\euler_mesh\\\\mesh\\\\partition_0.vtu'' | Select-String -Pattern ''Cells|DataArray|connectivity|offsets|types'' -Context 0,3 | Select-Object -First 30\")",
+      "Bash(powershell -Command \"$input | Select-Object -First 15; Write-Host ''...''; $input | Select-Object -Last 5\")",
+      "Bash(del:*)"
     ]
   }
 }
