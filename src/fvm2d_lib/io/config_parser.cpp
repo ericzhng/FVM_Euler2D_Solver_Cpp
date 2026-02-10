@@ -1,7 +1,7 @@
 #include "core/config.hpp"
 #include "boundary/boundary_condition.hpp"
 #include <yaml-cpp/yaml.h>
-#include <mpi.h>
+#include "core/mpi_wrapper.hpp"
 #include <stdexcept>
 #include <sstream>
 #include <iostream>

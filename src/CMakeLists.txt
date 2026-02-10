@@ -15,11 +15,15 @@ target_include_directories(fvm2d_deps
 target_compile_definitions(fvm2d_deps INTERFACE FVM2D_LIBRARY_TYPE)
 target_link_libraries(fvm2d_deps
     INTERFACE
-        MPI::MPI_CXX
         Eigen3::Eigen
         yaml-cpp::yaml-cpp
         CLI11::CLI11
 )
+
+if(FVM2D_USE_MPI)
+    target_link_libraries(fvm2d_deps INTERFACE MPI::MPI_CXX)
+    target_compile_definitions(fvm2d_deps INTERFACE FVM2D_USE_MPI)
+endif()
 
 if(FVM2D_USE_OPENMP AND OpenMP_FOUND)
     target_link_libraries(fvm2d_deps INTERFACE OpenMP::OpenMP_CXX)

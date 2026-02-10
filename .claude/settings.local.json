@@ -20,7 +20,8 @@
       "Bash(python3:*)",
       "Bash(powershell -Command \"Get-Content ''example\\\\euler_mesh\\\\mesh\\\\partition_0.vtu'' | Select-String -Pattern ''Cells|DataArray|connectivity|offsets|types'' -Context 0,3 | Select-Object -First 30\")",
       "Bash(powershell -Command \"$input | Select-Object -First 15; Write-Host ''...''; $input | Select-Object -Last 5\")",
-      "Bash(del:*)"
+      "Bash(del:*)",
+      "Bash(\"e:\\\\2026-02\\\\FVM_Euler2D_Solver_Cpp\\\\build\\\\serial\\\\bin\\\\Release\\\\fvm2d_solver.exe\" --help)"
     ]
   }
 }

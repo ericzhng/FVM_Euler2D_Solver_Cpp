@@ -3,7 +3,7 @@
 #include "common/fvm_export.hpp"
 #include "core/types.hpp"
 #include "mesh/partition_mesh.hpp"
-#include <mpi.h>
+#include "core/mpi_wrapper.hpp"
 
 namespace fvm2d {
 

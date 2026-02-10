@@ -4,7 +4,7 @@
 #include "core/types.hpp"
 #include "mesh/partition_mesh.hpp"
 #include "physics/physics_model.hpp"
-#include <mpi.h>
+#include "core/mpi_wrapper.hpp"
 
 namespace fvm2d {
 

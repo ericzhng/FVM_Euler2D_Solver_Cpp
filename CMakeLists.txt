@@ -45,6 +45,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # =============================================================================
 # Options
 # =============================================================================
+option(FVM2D_USE_MPI    "Enable MPI parallelization"    ON)
 option(FVM2D_USE_OPENMP "Enable OpenMP parallelization" ON)
 option(FVM2D_BUILD_TESTS "Build unit tests" OFF)
 
@@ -67,113 +68,120 @@ endif()
 # =============================================================================
 
 # =============================================================================
-# MPI Configuration (Cross-Platform)
+# MPI Configuration (Cross-Platform) — optional via FVM2D_USE_MPI
 # =============================================================================
-# Supports:
-#   - Windows: MS-MPI (Microsoft MPI)
-#   - Linux:   OpenMPI, MPICH, Intel MPI
-#   - macOS:   OpenMPI, MPICH
+if(FVM2D_USE_MPI)
+    # Supports:
+    #   - Windows: MS-MPI (Microsoft MPI)
+    #   - Linux:   OpenMPI, MPICH, Intel MPI
+    #   - macOS:   OpenMPI, MPICH
 # =============================================================================
-set(FVM2D_MPI_FOUND FALSE)
-set(FVM2D_MPI_IMPL "Unknown")
+    set(FVM2D_MPI_FOUND FALSE)
+    set(FVM2D_MPI_IMPL "Unknown")
 
-if(WIN32)
+    if(WIN32)
     # -------------------------------------------------------------------------
     # Windows: Try MS-MPI first, then fall back to standard find_package
     # -------------------------------------------------------------------------
-    message(STATUS "Searching for MPI on Windows...")
+        message(STATUS "Searching for MPI on Windows...")
 
     # Try standard CMake MPI finder first (works if msmpicc is in PATH)
-    find_package(MPI QUIET)
+        find_package(MPI QUIET)
 
-    if(MPI_FOUND AND TARGET MPI::MPI_CXX)
-        set(FVM2D_MPI_FOUND TRUE)
-        set(FVM2D_MPI_IMPL "MPI (auto-detected)")
-        message(STATUS "MPI found via find_package(MPI)")
-    else()
-        # Try our custom MS-MPI finder
-        message(STATUS "Standard MPI not found, trying MS-MPI...")
-        find_package(MSMPI QUIET)
-
-        if(MSMPI_FOUND)
+        if(MPI_FOUND AND TARGET MPI::MPI_CXX)
             set(FVM2D_MPI_FOUND TRUE)
-            set(FVM2D_MPI_IMPL "MS-MPI")
+            set(FVM2D_MPI_IMPL "MPI (auto-detected)")
+            message(STATUS "MPI found via find_package(MPI)")
+        else()
+        # Try our custom MS-MPI finder
+            message(STATUS "Standard MPI not found, trying MS-MPI...")
+            find_package(MSMPI QUIET)
+
+            if(MSMPI_FOUND)
+                set(FVM2D_MPI_FOUND TRUE)
+                set(FVM2D_MPI_IMPL "MS-MPI")
 
             # Create MPI::MPI_CXX target if not exists
-            if(NOT TARGET MPI::MPI_CXX)
-                add_library(MPI::MPI_CXX UNKNOWN IMPORTED)
-                set_target_properties(MPI::MPI_CXX PROPERTIES
-                    IMPORTED_LOCATION "${MSMPI_LIBRARY}"
-                    INTERFACE_INCLUDE_DIRECTORIES "${MSMPI_INCLUDE_DIR}"
-                )
-            endif()
+                if(NOT TARGET MPI::MPI_CXX)
+                    add_library(MPI::MPI_CXX UNKNOWN IMPORTED)
+                    set_target_properties(MPI::MPI_CXX PROPERTIES
+                        IMPORTED_LOCATION "${MSMPI_LIBRARY}"
+                        INTERFACE_INCLUDE_DIRECTORIES "${MSMPI_INCLUDE_DIR}"
+                    )
+                endif()
 
-            set(MPI_CXX_INCLUDE_DIRS "${MSMPI_INCLUDE_DIRS}")
-            set(MPI_CXX_LIBRARIES "${MSMPI_LIBRARIES}")
-            set(MPIEXEC_EXECUTABLE "${MSMPI_MPIEXEC}")
+                set(MPI_CXX_INCLUDE_DIRS "${MSMPI_INCLUDE_DIRS}")
+                set(MPI_CXX_LIBRARIES "${MSMPI_LIBRARIES}")
+                set(MPIEXEC_EXECUTABLE "${MSMPI_MPIEXEC}")
 
-            message(STATUS "MS-MPI found:")
-            message(STATUS "  Include: ${MSMPI_INCLUDE_DIR}")
-            message(STATUS "  Library: ${MSMPI_LIBRARY}")
-            if(MSMPI_VERSION)
-                message(STATUS "  Version: ${MSMPI_VERSION}")
+                message(STATUS "MS-MPI found:")
+                message(STATUS "  Include: ${MSMPI_INCLUDE_DIR}")
+                message(STATUS "  Library: ${MSMPI_LIBRARY}")
+                if(MSMPI_VERSION)
+                    message(STATUS "  Version: ${MSMPI_VERSION}")
+                endif()
             endif()
         endif()
-    endif()
 
-    if(NOT FVM2D_MPI_FOUND)
-        message(FATAL_ERROR
-            "MPI not found on Windows!\n"
-            "Please install Microsoft MPI:\n"
-            "  1. Download from: https://docs.microsoft.com/en-us/message-passing-interface/microsoft-mpi\n"
-            "  2. Install both 'msmpisetup.exe' (runtime) and 'msmpisdk.msi' (SDK)\n"
-            "  3. Ensure environment variables MSMPI_INC and MSMPI_LIB64 are set\n"
-            "     (They should be set automatically after installation)"
-        )
-    endif()
+        if(NOT FVM2D_MPI_FOUND)
+            message(FATAL_ERROR
+                "MPI not found on Windows!\n"
+                "Please install Microsoft MPI:\n"
+                "  1. Download from: https://docs.microsoft.com/en-us/message-passing-interface/microsoft-mpi\n"
+                "  2. Install both 'msmpisetup.exe' (runtime) and 'msmpisdk.msi' (SDK)\n"
+                "  3. Ensure environment variables MSMPI_INC and MSMPI_LIB64 are set\n"
+                "     (They should be set automatically after installation)"
+            )
+        endif()
 
-else()
+    else()
     # -------------------------------------------------------------------------
     # Unix/Linux/macOS: Use standard CMake MPI finder
     # -------------------------------------------------------------------------
-    message(STATUS "Searching for MPI on Unix/Linux/macOS...")
-    find_package(MPI REQUIRED)
+        message(STATUS "Searching for MPI on Unix/Linux/macOS...")
+        find_package(MPI REQUIRED)
 
-    if(MPI_FOUND AND TARGET MPI::MPI_CXX)
-        set(FVM2D_MPI_FOUND TRUE)
+        if(MPI_FOUND AND TARGET MPI::MPI_CXX)
+            set(FVM2D_MPI_FOUND TRUE)
 
         # Detect MPI implementation
-        if(DEFINED MPI_CXX_COMPILER)
-            execute_process(
-                COMMAND ${MPI_CXX_COMPILER} --version
-                OUTPUT_VARIABLE _mpi_version_output
-                ERROR_QUIET
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-            )
-            if(_mpi_version_output MATCHES "Open MPI")
-                set(FVM2D_MPI_IMPL "OpenMPI")
-            elseif(_mpi_version_output MATCHES "MPICH")
-                set(FVM2D_MPI_IMPL "MPICH")
-            elseif(_mpi_version_output MATCHES "Intel")
-                set(FVM2D_MPI_IMPL "Intel MPI")
+            if(DEFINED MPI_CXX_COMPILER)
+                execute_process(
+                    COMMAND ${MPI_CXX_COMPILER} --version
+                    OUTPUT_VARIABLE _mpi_version_output
+                    ERROR_QUIET
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                )
+                if(_mpi_version_output MATCHES "Open MPI")
+                    set(FVM2D_MPI_IMPL "OpenMPI")
+                elseif(_mpi_version_output MATCHES "MPICH")
+                    set(FVM2D_MPI_IMPL "MPICH")
+                elseif(_mpi_version_output MATCHES "Intel")
+                    set(FVM2D_MPI_IMPL "Intel MPI")
+                else()
+                    set(FVM2D_MPI_IMPL "MPI")
+                endif()
             else()
                 set(FVM2D_MPI_IMPL "MPI")
             endif()
-        else()
-            set(FVM2D_MPI_IMPL "MPI")
-        endif()
 
-        message(STATUS "${FVM2D_MPI_IMPL} found:")
-        message(STATUS "  Include: ${MPI_CXX_INCLUDE_DIRS}")
-        if(MPI_CXX_VERSION)
-            message(STATUS "  Version: ${MPI_CXX_VERSION}")
+            message(STATUS "${FVM2D_MPI_IMPL} found:")
+            message(STATUS "  Include: ${MPI_CXX_INCLUDE_DIRS}")
+            if(MPI_CXX_VERSION)
+                message(STATUS "  Version: ${MPI_CXX_VERSION}")
+            endif()
         endif()
     endif()
-endif()
 
-# Verify MPI target exists
-if(NOT TARGET MPI::MPI_CXX)
-    message(FATAL_ERROR "MPI::MPI_CXX target not available after MPI configuration")
+    # Verify MPI target exists
+    if(NOT TARGET MPI::MPI_CXX)
+        message(FATAL_ERROR "MPI::MPI_CXX target not available after MPI configuration")
+    endif()
+
+else()
+    # No MPI — serial build
+    set(FVM2D_MPI_IMPL "Disabled (serial)")
+    message(STATUS "MPI disabled — building serial solver")
 endif()
 
 # OpenMP (optional)
@@ -287,6 +295,7 @@ message(STATUS "    yaml-cpp:  Found")
 message(STATUS "    CLI11:     Found")
 message(STATUS "")
 message(STATUS "  Options:")
+message(STATUS "    MPI:         ${FVM2D_USE_MPI}")
 message(STATUS "    Build Tests: ${FVM2D_BUILD_TESTS}")
 message(STATUS "")
 message(STATUS "  Directories:")

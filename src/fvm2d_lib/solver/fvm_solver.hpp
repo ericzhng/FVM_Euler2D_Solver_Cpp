@@ -8,7 +8,7 @@
 #include "boundary/boundary_condition.hpp"
 #include "time/time_integrator.hpp"
 #include <memory>
-#include <mpi.h>
+#include "core/mpi_wrapper.hpp"
 
 namespace fvm2d {
 

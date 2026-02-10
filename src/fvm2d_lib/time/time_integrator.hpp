@@ -6,7 +6,7 @@
 #include "mesh/partition_mesh.hpp"
 #include "physics/physics_model.hpp"
 #include "boundary/boundary_condition.hpp"
-#include <mpi.h>
+#include "core/mpi_wrapper.hpp"
 #include <memory>
 #include <array>
 
